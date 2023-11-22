@@ -11,7 +11,7 @@ Une autre possibilité est de renommer le DLL en vlc.dll, mais cela peut être p
 5. Ctrl+B, puis allez dans le dossier de votre projet, Debug, puis x64, et le DLL build sera là.
    
 # Screenshot
-![screenshot](https://github.com/Wykt/paladium-xray/assets/47749428/b7b0cd25-4904-4242-bd38-b1ea69ef04df)
+![screenshot](https://github.com/Wykt/paladium-xray/blob/master/screenshot.png)
 
 # License
 [GNU GPL 3.0](https://choosealicense.com/licenses/gpl-3.0/)
