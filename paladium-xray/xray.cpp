@@ -1,10 +1,11 @@
-#include <iostream>
-#include <sstream>
-
 #include "xray.hpp"
+#include "blocks.hpp"
 #include "hook.hpp"
 #include "utils.hpp"
 #include "gl_utils.hpp"
+
+#include <algorithm>
+#include <mutex>
 
 JNIEnv* env;
 
@@ -32,33 +33,38 @@ jfieldID the_player_field, the_world_field;
 // player fields
 jfieldID player_x_field, player_y_field, player_z_field;
 
-std::vector<chunk> chunks;
 vec3d* render_pos_vec = new vec3d(0, 0, 0);
+
+std::vector<chunk> chunks;
+std::mutex mutex;
 
 void xray::render()
 {
 	for (chunk chunk : chunks)
 	{
-		for (vec3i pos : chunk.blocks)
+		for (block block : *chunk.blocks)
 		{
 			glPushMatrix();
 			gl_utils::start();
-			glColor4f(1, 0, 0, 0.25F);
 
-			double x = pos.x - render_pos_vec->x;
-			double y = pos.y - render_pos_vec->y;
-			double z = pos.z - render_pos_vec->z;
+			vec3f* color = blocks::get_block_color(block.block_id);
+			glColor4f(color->r, color->g, color->b, 0.05F);
 
-			gl_utils::quads(x, y, z, x + 1, y + 1, z + 1);
+			double x = block.position.x - render_pos_vec->x;
+			double y = block.position.y - render_pos_vec->y;
+			double z = block.position.z - render_pos_vec->z;
+
+			double start_offset = 0.5;
+			double offset = 0.5;
+
+			gl_utils::quads(x + start_offset - offset, y + start_offset - offset, z + start_offset - offset, x + start_offset + offset, y + start_offset + offset, z + start_offset + offset);
+			glColor4f(color->r, color->g, color->b, 1);
+			gl_utils::outlines(x + start_offset - offset, y + start_offset - offset, z + start_offset - offset, x + start_offset + offset, y + start_offset + offset, z + start_offset + offset, 1);
+
 			gl_utils::end();
 			glPopMatrix();
 		}
 	}
-}
-
-bool is_block_whitelisted(int block_id)
-{
-	return block_id == 548;
 }
 
 void update_matrix()
@@ -107,7 +113,7 @@ int get_id_from_block(jobject world, vec3i vec)
 chunk get_chunk_data(int chunk_x, int chunk_z)
 {
 	chunk chunk;
-	std::vector<vec3i> blocks;
+	std::vector<block>* blocks = new std::vector<block>();
 
 	jobject world = env->GetObjectField(mc_instance, the_world_field);
 
@@ -126,9 +132,11 @@ chunk get_chunk_data(int chunk_x, int chunk_z)
 				vec3i block_pos = vec3i(x, y, z);
 				int block_id = get_id_from_block(world, block_pos);
 
-				if (is_block_whitelisted(block_id))
+				if (blocks::is_block_whitelisted(block_id))
 				{
-					blocks.push_back(block_pos);
+					mutex.lock();
+					blocks->push_back(block(block_pos, block_id));
+					mutex.unlock();
 				}
 			}
 		}
@@ -181,9 +189,11 @@ void find_chunks()
 			chunk.x = chunk_x + x;
 			chunk.z = chunk_z + z;
 
-			if (chunk.blocks.size() > 0) 
+			if (chunk.blocks->size() > 0) 
 			{
+				mutex.lock();
 				chunks.push_back(chunk);
+				mutex.unlock();
 			}
 		}
 	}
@@ -194,32 +204,24 @@ void find_chunks()
 void validate_chunks()
 {
 	jobject world = env->GetObjectField(mc_instance, the_world_field);
-	std::vector<chunk> checked_chunks;
 
+	//TODO: fix that shit
 	for (chunk c : chunks)
 	{
-		std::vector<vec3i> checked_blocks;
+		std::vector<block>* blocks = c.blocks;
+		int size = blocks->size();
 
-		for (vec3i block : c.blocks)
+		for (int i = 0; i < blocks->size(); i++)
 		{
-			int block_id = get_id_from_block(world, block);
+			block block = blocks->data()[i];
+			int block_id = get_id_from_block(world, block.position);
 
-			if (is_block_whitelisted(block_id))
+			if (!blocks::is_block_whitelisted(block_id))
 			{
-				checked_blocks.push_back(block);
+				blocks->erase(blocks->begin() + i);
 			}
 		}
-
-		chunk nc;
-		nc.x = c.x;
-		nc.z = c.z;
-		nc.blocks = checked_blocks;
-		c.blocks.clear();
-		checked_chunks.push_back(nc);
 	}
-
-	chunks.clear();
-	chunks = checked_chunks;
 
 	env->DeleteLocalRef(world);
 }
@@ -296,11 +298,22 @@ void xray::initialize(HMODULE handle)
 	}
 
 	initialize_fields(class_loader);
+	blocks::initialize();
 
 	int i = 2000;
 
 	while (!GetAsyncKeyState(VK_END))
 	{
+		jobject world = env->GetObjectField(mc_instance, the_world_field);
+
+		if (!world)
+		{
+			chunks.clear();
+			continue;
+		}
+
+		env->DeleteLocalRef(world);
+
 		if (i > 2000) {
 			find_chunks();
 			i = 0;

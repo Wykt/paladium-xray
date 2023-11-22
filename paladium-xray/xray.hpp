@@ -38,7 +38,20 @@ public:
 	}
 };
 
+class block
+{
+public:
+	vec3i position;
+	int block_id;
+
+	block(vec3i position, int block_id) : position(position)
+	{
+		this->position = position;
+		this->block_id = block_id;
+	}
+};
+
 struct chunk {
 	int x, z;
-	std::vector<vec3i> blocks;
+	std::vector<block>* blocks;
 };

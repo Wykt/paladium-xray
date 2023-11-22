@@ -1,4 +1,3 @@
-#include <iostream>
 #include <Windows.h>
 #include <gl/GL.h>
 #include "hook.hpp"
@@ -23,7 +22,7 @@ bool should_reinitialize(RECT rect)
 	return rect.left != last_rect.left || rect.right != last_rect.right || rect.top != last_rect.top || rect.bottom != last_rect.bottom;
 }
 
-bool __stdcall hook_wglSwapBuffers(HDC hDc)
+bool hook_wglSwapBuffers(HDC hDc)
 {
 	static HGLRC current_context = wglGetCurrentContext();
 	static HGLRC context = wglCreateContext(hDc);
