@@ -132,18 +132,19 @@ chunk get_chunk_data(int chunk_x, int chunk_z)
 				vec3i block_pos = vec3i(x, y, z);
 				int block_id = get_id_from_block(world, block_pos);
 
-				if (blocks::is_block_whitelisted(block_id))
+				if (!blocks::is_block_whitelisted(block_id))
 				{
-					mutex.lock();
-					blocks->push_back(block(block_pos, block_id));
-					mutex.unlock();
+					continue;
 				}
+
+				mutex.lock();
+				blocks->push_back(block(block_pos, block_id));
+				mutex.unlock();
 			}
 		}
 	}
 
 	chunk.blocks = blocks;
-	
 	env->DeleteLocalRef(world);
 	return chunk;
 }
@@ -154,11 +155,13 @@ void find_chunks()
 	int x = (int) (env->GetDoubleField(player, player_x_field) / 16);
 	int z = (int) (env->GetDoubleField(player, player_z_field) / 16);
 
-	if (x < 0) {
+	if (x < 0) 
+	{
 		x--;
 	}
 
-	if (z < 0) {
+	if (z < 0) 
+	{
 		z--;
 	}
 
@@ -189,12 +192,14 @@ void find_chunks()
 			chunk.x = chunk_x + x;
 			chunk.z = chunk_z + z;
 
-			if (chunk.blocks->size() > 0) 
+			if (chunk.blocks->empty()) 
 			{
-				mutex.lock();
-				chunks.push_back(chunk);
-				mutex.unlock();
+				continue;
 			}
+
+			mutex.lock();
+			chunks.push_back(chunk);
+			mutex.unlock();
 		}
 	}
 
@@ -209,7 +214,6 @@ void validate_chunks()
 	for (chunk c : chunks)
 	{
 		std::vector<block>* blocks = c.blocks;
-		int size = blocks->size();
 
 		for (int i = 0; i < blocks->size(); i++)
 		{
@@ -305,14 +309,14 @@ void xray::initialize(HMODULE handle)
 	while (!GetAsyncKeyState(VK_END))
 	{
 		jobject world = env->GetObjectField(mc_instance, the_world_field);
+		bool is_world_null = world == nullptr;
+		env->DeleteLocalRef(world);
 
-		if (!world)
+		if (is_world_null)
 		{
 			chunks.clear();
 			continue;
 		}
-
-		env->DeleteLocalRef(world);
 
 		if (i > 2000) {
 			find_chunks();
@@ -331,6 +335,13 @@ void xray::initialize(HMODULE handle)
 		Sleep(1);
 	}
 
+	for (chunk c : chunks)
+	{
+		c.blocks->clear();
+		delete c.blocks;
+	}
+
+	chunks.clear();
 	hook::uninitialize_hooks();
 	FreeLibraryAndExitThread(handle, 0);
 }
