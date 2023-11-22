@@ -274,6 +274,17 @@ void initialize_fields(j_classloader* cl)
 	env->DeleteLocalRef(world_class);
 }
 
+void clear_chunks()
+{
+	for (chunk c : chunks)
+	{
+		c.blocks->clear();
+		delete c.blocks;
+	}
+
+	chunks.clear();
+}
+
 void xray::initialize(HMODULE handle)
 {
 	hook::initialize_hooks();
@@ -313,7 +324,7 @@ void xray::initialize(HMODULE handle)
 
 		if (is_world_null)
 		{
-			chunks.clear();
+			clear_chunks();
 			continue;
 		}
 
@@ -334,13 +345,8 @@ void xray::initialize(HMODULE handle)
 		Sleep(1);
 	}
 
-	for (chunk c : chunks)
-	{
-		c.blocks->clear();
-		delete c.blocks;
-	}
 
-	chunks.clear();
+	clear_chunks();
 	hook::uninitialize_hooks();
 	FreeLibraryAndExitThread(handle, 0);
 }
