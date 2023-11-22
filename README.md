@@ -1,6 +1,7 @@
 # Informations
 Un simple xray concu pour Paladium<br>
-Nécessite d'être injecté avec un injecteur DLL avec l'option "Manual Map" afin de contourner l'anticheat actuel de Paladium.
+Nécessite d'être injecté avec l'option "Manual Map" afin de contourner l'anticheat actuel de Paladium.<br>
+Une autre possibilité est de renommer le DLL en vlc.dll, mais cela peut être patch assez facilement.
 
 # Comment build le projet
 1. Installez un JDK pour Java8
