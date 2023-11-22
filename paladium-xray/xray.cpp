@@ -210,7 +210,6 @@ void validate_chunks()
 {
 	jobject world = env->GetObjectField(mc_instance, the_world_field);
 
-	//TODO: fix that shit
 	for (chunk c : chunks)
 	{
 		std::vector<block>* blocks = c.blocks;
