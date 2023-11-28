@@ -8,7 +8,10 @@
 namespace xray {
 
 	void render();
+	void render_gui();
 	void initialize(HMODULE handle);
+
+	extern bool gui_open;
 }
 
 extern GLfloat projection[16];

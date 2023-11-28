@@ -6,6 +6,10 @@
 
 #include <algorithm>
 #include <mutex>
+#include "imgui/imgui.h"
+#include "imtheme.h"
+#include "imgui/imgui_impl_opengl2.h"
+#include "imgui/imgui_impl_win32.h"
 
 JNIEnv* env;
 
@@ -37,9 +41,21 @@ vec3d* render_pos_vec = new vec3d(0, 0, 0);
 
 std::vector<chunk> chunks;
 std::mutex mutex;
+bool enabled, stop;
+
+// gui
+ImFont* font;
+int min_y_search = 0;
+int max_y_search = 50;
+bool xray::gui_open;
 
 void xray::render()
 {
+	if (!enabled)
+	{
+		return;
+	}
+
 	for (chunk chunk : chunks)
 	{
 		for (block block : *chunk.blocks)
@@ -117,10 +133,7 @@ chunk get_chunk_data(int chunk_x, int chunk_z)
 
 	jobject world = env->GetObjectField(mc_instance, the_world_field);
 
-	// max y search
-	int max_y = 50;
-
-	for (int y = 0; y < max_y; ++y)
+	for (int y = min_y_search; y < max_y_search; ++y)
 	{
 		update_render_pos();
 		update_matrix();
@@ -285,8 +298,105 @@ void clear_chunks()
 	chunks.clear();
 }
 
+void xray::render_gui()
+{
+	auto io = ImGui::GetIO();
+
+	ImGui::Begin("xray", 0, ImGuiWindowFlags_NoCollapse);
+	ImGui::PushFont(font);
+
+	std::vector<whitelisted_block>* vec = blocks::get_whitelisted_blocks();
+
+	if (ImGui::BeginTabBar("categories"))
+	{
+		if (ImGui::BeginTabItem("settings"))
+		{
+			ImGui::Checkbox("enabled", &enabled);
+			ImGui::SliderInt("min y search", &min_y_search, 0, 255);
+			ImGui::SliderInt("max y search", &max_y_search, 25, 255);
+
+			if (ImGui::Button("reload chunks"))
+			{
+				clear_chunks();
+			}
+
+			ImGui::SameLine();
+
+			if (ImGui::Button("self destruct"))
+			{
+				stop = true;
+			}
+
+			ImGui::EndTabItem();
+		}
+
+		if (ImGui::BeginTabItem("whitelisted blocks"))
+		{
+			int o = 0;
+
+			for (int i = 0; i < vec->size(); ++i)
+			{
+				whitelisted_block b = vec->data()[i];
+				int block_id = b.block_id;
+				ImGui::Text("%i", block_id);
+				ImGui::SameLine();
+
+				if (ImGui::Button("remove"))
+				{
+					vec->erase(vec->begin() + i);
+				}
+
+				if (o < 3 && i != vec->size())
+				{
+					ImGui::SameLine();
+					o++;
+				}
+				else if (o == 3) o = 0;
+			}
+
+			ImGui::EndTabItem();
+		}
+
+		if (ImGui::BeginTabItem("whitelist block"))
+		{
+			static int id;
+			static ImVec4 color = ImVec4(0, 0, 0, 0);
+
+			ImGui::InputInt("block id", &id);
+			ImGui::ColorEdit3("color", (float*)&color);
+
+			if (ImGui::Button("add block"))
+			{
+				vec3f color_vec = vec3f(color.x, color.y, color.z);
+
+				vec->push_back(whitelisted_block(id, color_vec));
+				clear_chunks();
+			}
+
+			ImGui::EndTabItem();
+		}
+
+		ImGui::EndTabBar();
+	}
+
+	ImGui::PopFont();
+	ImGui::End();
+}
+
 void xray::initialize(HMODULE handle)
 {
+	// we don't want paladium to check for imgui.ini file
+	//auto io = ImGui::GetIO();
+	//io.IniFilename = NULL;
+	//io.LogFilename = NULL;
+
+	ImGui::CreateContext();
+	ImGui_ImplWin32_Init(FindWindowA("LWJGL", NULL));
+	ImGui_ImplOpenGL2_Init();
+	imtheme::init_theme();
+
+	font = ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Arial.ttf", 20);
+
 	hook::initialize_hooks();
 
 	JavaVM* jvm = utils::get_jvm_instance();
@@ -316,7 +426,7 @@ void xray::initialize(HMODULE handle)
 
 	int i = 2000;
 
-	while (!GetAsyncKeyState(VK_END))
+	while (!GetAsyncKeyState(VK_END) && !stop)
 	{
 		jobject world = env->GetObjectField(mc_instance, the_world_field);
 		bool is_world_null = world == nullptr;
@@ -348,5 +458,6 @@ void xray::initialize(HMODULE handle)
 
 	clear_chunks();
 	hook::uninitialize_hooks();
+	ImGui::DestroyContext();
 	FreeLibraryAndExitThread(handle, 0);
 }
